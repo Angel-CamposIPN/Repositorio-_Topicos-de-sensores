@@ -1,4 +1,4 @@
-# Repositorio Muestra 
+# Repositorio TOPICOS AVANZADOS DE SENSORES 3MM6
 
 ## Integrantes del equipo
 
