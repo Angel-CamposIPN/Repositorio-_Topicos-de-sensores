@@ -1,0 +1,55 @@
+load("caminata2m (1).mat");
+
+
+% Extraer columnas
+lat = Position.latitude;
+lon = Position.longitude;
+alt = Position.altitude;
+
+%% 1️⃣ Trayectoria 2D
+figure
+geoscatter(lat, lon, 20, 'filled')   % 15 = tamaño del punto
+geobasemap satellite                  % puedes cambiar a 'streets'
+title('Puntos GPS al aire libre')
+
+
+%% 2️⃣ Trayectoria 3D
+figure
+plot3(lon, lat, alt, 'r-o')
+xlabel('Longitud')
+ylabel('Latitud')
+zlabel('Altitud (m)')
+title('Trayectoria GPS 3D')
+grid on
+view(3)
+
+%% 3️⃣ Altitud vs muestra
+figure
+plot(alt, 'k-o')
+xlabel('Número de muestra')
+ylabel('Altitud (m)')
+title('Altitud')
+grid on
+
+lat = Position.latitude;
+lon = Position.longitude;
+
+
+%Grafica de trayectoria
+figure
+gx = geoaxes;
+hold(gx,'on')
+
+% Dibujar trayectoria
+geoplot(gx, lat, lon, '-b', 'LineWidth', 2)
+
+% Intervalo para no saturar de flechas
+step = 10;   % puedes cambiarlo (10 = más flechas)
+
+for k = 1:step:length(lat)-1
+    geoplot(gx, [lat(k) lat(k+1)], [lon(k) lon(k+1)], ...
+        '-r', 'LineWidth', 2)
+end
+
+geobasemap(gx,'satellite')
+title('Trayectoria GPS de 200m')

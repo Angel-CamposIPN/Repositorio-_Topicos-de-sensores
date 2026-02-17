@@ -1,0 +1,30 @@
+clc;
+clear;
+close all;
+
+%% 1. Seleccionar archivo CSV
+[archivo, ruta] = uigetfile('*.csv', 'Selecciona el archivo CSV');
+%%Se cambia la extension dependiendo del archivo que se quiere seleccionar
+if isequal(archivo,0)
+    disp('No se seleccionó archivo');
+    return;
+end
+
+%% 2. Leer archivo CSV
+datos = readtable(fullfile(ruta, archivo));
+
+%% 3. Extraer columnas 
+lat = datos.latitud;
+lon = datos.longitud;
+
+%% 4. Crear figura con mapa
+figure
+geobasemap satellite      % satellite, topographic, streets
+hold on
+%% 5. Graficar puntos
+geoscatter(lat, lon, 40, 'r', 'filled')
+
+%% 6. Dibujar trayectoria
+geoplot(lat, lon, 'b-', 'LineWidth', 1.5)
+
+title('Mapa de puntos GPS de trayectoria de 200m')
