@@ -1,4 +1,4 @@
-# Repositorio Muestra - Editar este archivo
+# Repositorio Muestra 
 
 ## Integrantes del equipo
 
