@@ -6,14 +6,14 @@ lat = Position.latitude;
 lon = Position.longitude;
 alt = Position.altitude;
 
-%% 1️⃣ Trayectoria 2D
+%% 1️ Trayectoria 2D
 figure
-geoscatter(lat, lon, 20, 'filled')   % 15 = tamaño del punto
-geobasemap satellite                  % puedes cambiar a 'streets'
+geoscatter(lat, lon, 20, 'filled')   %  tamaño del punto
+geobasemap satellite                  
 title('Puntos GPS al aire libre')
 
 
-%% 2️⃣ Trayectoria 3D
+%% 2️ Trayectoria 3D
 figure
 plot3(lon, lat, alt, 'r-o')
 xlabel('Longitud')
@@ -23,7 +23,7 @@ title('Trayectoria GPS 3D')
 grid on
 view(3)
 
-%% 3️⃣ Altitud vs muestra
+%%  Altitud vs muestra
 figure
 plot(alt, 'k-o')
 xlabel('Número de muestra')
@@ -44,7 +44,7 @@ hold(gx,'on')
 geoplot(gx, lat, lon, '-b', 'LineWidth', 2)
 
 % Intervalo para no saturar de flechas
-step = 10;   % puedes cambiarlo (10 = más flechas)
+step = 10;   
 
 for k = 1:step:length(lat)-1
     geoplot(gx, [lat(k) lat(k+1)], [lon(k) lon(k+1)], ...
@@ -53,3 +53,4 @@ end
 
 geobasemap(gx,'satellite')
 title('Trayectoria GPS de 200m')
+
