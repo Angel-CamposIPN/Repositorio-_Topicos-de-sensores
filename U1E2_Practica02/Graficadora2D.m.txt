@@ -1,0 +1,61 @@
+% 1. Configuración e Importación
+opts = detectImportOptions('datoscilindro2.txt');
+opts.VariableNamingRule = 'preserve';
+tabla = readtable('datoscilindro2.txt', opts);
+
+% 2. Extracción de variables
+t = tabla.tiempo_ms;
+dist_raw = tabla.distancia_mm;
+x_raw = tabla.x_mm;
+y_raw = tabla.y_mm;
+
+% --- 3. Aplicación de Filtros ---
+windowSize = 5; 
+dist_filt = smoothdata(dist_raw, 'movmedian', windowSize);
+x_filt = smoothdata(x_raw, 'gaussian', windowSize);
+y_filt = smoothdata(y_raw, 'gaussian', windowSize);
+
+% --- 4. Unión y Espejeo (Eje)
+% Cambia 217.1 por 80 si prefieres la medida real del objeto
+eje_menor = 217.14; 
+punto_minimo = min(y_filt); 
+centro_y = punto_minimo + (eje_menor / 2);
+
+% Creamos el perfil espejeado
+y_espejo = 2 * centro_y - y_filt;
+
+% UNIÓN DE SEÑALES: Creamos un solo contorno cerrado
+% 'flipud' invierte el orden para que el trazo sea continuo y circular
+x_unido = [x_filt; flipud(x_filt)]; 
+y_unido = [y_filt; flipud(y_espejo)];
+
+%Grafica
+figure('Name', 'Reconstrucción de Objeto Elíptico', 'Color', 'w', 'Position', [100 100 800 600]);
+
+% 1. Dibujar el sólido unido con relleno gris y borde negro
+% Usamos x_unido e y_unido calculados previamente con flipud
+fill(x_unido, y_unido, [0.75 0.75 0.75], 'EdgeColor', 'k', 'LineWidth', 1.5, 'DisplayName', 'Cuerpo del Objeto');
+hold on;
+
+% 2. Dibujar los contornos para resaltar la unión de las señales
+plot(x_filt, y_filt, 'b', 'LineWidth', 2, 'DisplayName', 'Borde Superior');
+plot(x_filt, y_espejo, 'r', 'LineWidth', 2, 'DisplayName', 'Borde Inferior');
+
+% 3. Configuración de Texto en NEGRO ('Color', 'k')
+title(['Reconstrucción 2D'], ...
+      'FontSize', 14, 'FontWeight', 'bold', 'Color', 'k');
+
+xlabel('Posición X (mm)', 'FontSize', 12, 'Color', 'k');
+ylabel('Posición Y (mm)', 'FontSize', 12, 'Color', 'k');
+
+% 4. Ajustes de Ejes y Rejilla
+set(gca, 'XColor', 'k', 'YColor', 'k', 'ZColor', 'k'); % Color de los números de los ejes
+set(gca, 'Color', 'w'); % Fondo de la gráfica blanco
+grid on;
+set(gca, 'GridColor', [0.8 0.8 0.8], 'GridAlpha', 0.6); % Rejilla gris tenue
+
+% 5. Leyenda con texto negro
+lgd = legend('Location', 'northeastoutside');
+lgd.TextColor = 'k'; 
+
+axis equal; % Proporción real 1:1
