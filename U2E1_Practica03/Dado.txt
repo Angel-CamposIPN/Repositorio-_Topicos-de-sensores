@@ -1,0 +1,232 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <SSD1306Ascii.h>
+#include <SSD1306AsciiWire.h>
+
+#define BOTON_PIN 2
+#define OLED_ADDRESS 0x3C
+
+SSD1306AsciiWire oled;
+MPU6050 mpu;
+
+const char* tareas[] = {
+  "Sin tarea",
+  "Sin tarea",
+  "Control Clasico",
+  "Inst. Virtual",
+  "Dis. Maquina",
+  "DSP",
+  "Automatas Ind."
+};
+
+unsigned long tiempos[7] = {0, 0, 0, 0, 0, 0, 0};
+unsigned long inicioTarea = 0;
+int caraActual = 0;
+bool corriendo = false;
+bool enResumen = false;
+
+bool estadoBoton = LOW;
+bool ultimoBoton = LOW;
+unsigned long ultimoDebounce = 0;
+#define DEBOUNCE_MS 50
+
+int detectarCara() {
+  int16_t ax, ay, az;
+  long sumX = 0, sumY = 0, sumZ = 0;
+
+  for (int i = 0; i < 5; i++) {
+    mpu.getAcceleration(&ax, &ay, &az);
+    sumX += ax;
+    sumY += ay;
+    sumZ += az;
+    delay(20);
+  }
+
+  long x = sumX / 5;
+  long y = sumY / 5;
+  long z = sumZ / 5;
+
+  if (y > 12000)  return 2;
+  if (x > 12000)  return 3;
+  if (x < -12000) return 4;
+  if (y < -12000) return 5;
+  if (z < -12000) return 6;
+
+  return 0;
+}
+
+String formatTiempo(unsigned long ms) {
+  unsigned long seg = ms / 1000;
+  unsigned long min = seg / 60;
+  seg = seg % 60;
+  char buf[10];
+  sprintf(buf, "%02lu:%02lu", min, seg);
+  return String(buf);
+}
+
+unsigned long tiempoTotal(int cara) {
+  unsigned long t = tiempos[cara];
+  if (corriendo && caraActual == cara) {
+    t += millis() - inicioTarea;
+  }
+  return t;
+}
+
+void mostrarPantalla() {
+  oled.clear();
+
+  oled.setCursor(0, 0);
+  oled.print("Tarea:");
+  oled.setCursor(0, 1);
+  if (caraActual == 0) {
+    oled.print("-- Sin tarea --");
+  } else {
+    oled.print(tareas[caraActual]);
+  }
+
+  oled.setCursor(0, 2);
+  oled.print("Tiempo: ");
+  oled.print(formatTiempo(tiempoTotal(caraActual)));
+
+  oled.setCursor(0, 4);
+  oled.print("C2:");
+  oled.print(formatTiempo(tiempoTotal(2)));
+  oled.print(" C3:");
+  oled.print(formatTiempo(tiempoTotal(3)));
+
+  oled.setCursor(0, 5);
+  oled.print("C4:");
+  oled.print(formatTiempo(tiempoTotal(4)));
+  oled.print(" C5:");
+  oled.print(formatTiempo(tiempoTotal(5)));
+
+  oled.setCursor(0, 6);
+  oled.print("C6:");
+  oled.print(formatTiempo(tiempoTotal(6)));
+}
+
+void mostrarInicio() {
+  oled.clear();
+  oled.setCursor(0, 2);
+  oled.print("  Dado Digital");
+  oled.setCursor(0, 4);
+  oled.print(" Presiona boton");
+  oled.setCursor(0, 5);
+  oled.print("  para iniciar");
+}
+
+void mostrarResumen() {
+  oled.clear();
+  oled.setCursor(0, 0);
+  oled.print("   -- RESUMEN --");
+
+  oled.setCursor(0, 1);
+  oled.print("Ctrl Clas: ");
+  oled.print(formatTiempo(tiempos[2]));
+
+  oled.setCursor(0, 2);
+  oled.print("Inst Virt: ");
+  oled.print(formatTiempo(tiempos[3]));
+
+  oled.setCursor(0, 3);
+  oled.print("Dis Maq:   ");
+  oled.print(formatTiempo(tiempos[4]));
+
+  oled.setCursor(0, 4);
+  oled.print("DSP:       ");
+  oled.print(formatTiempo(tiempos[5]));
+
+  oled.setCursor(0, 5);
+  oled.print("Automatas: ");
+  oled.print(formatTiempo(tiempos[6]));
+
+  oled.setCursor(0, 7);
+  oled.print("Boton=nuevo inicio");
+}
+
+void setup() {
+  Serial.begin(9600);
+  delay(1000);
+  Wire.begin();
+  pinMode(BOTON_PIN, INPUT_PULLUP);
+
+  Serial.println("Iniciando pantalla...");
+  oled.begin(&Adafruit128x64, OLED_ADDRESS);
+  oled.setFont(System5x7);
+  oled.clear();
+  Serial.println("Pantalla OK");
+
+  Serial.println("Iniciando MPU...");
+  mpu.initialize();
+  if (!mpu.testConnection()) {
+    Serial.println("Error MPU");
+    while (true);
+  }
+  Serial.println("MPU OK");
+  Serial.println("Todo listo");
+
+  mostrarInicio();
+}
+
+void loop() {
+  bool lecturaBoton = digitalRead(BOTON_PIN);
+  if (lecturaBoton != ultimoBoton) {
+    ultimoDebounce = millis();
+  }
+
+  if ((millis() - ultimoDebounce) > DEBOUNCE_MS) {
+    if (lecturaBoton != estadoBoton) {
+      estadoBoton = lecturaBoton;
+
+      if (estadoBoton == HIGH) {
+        if (!corriendo && !enResumen) {
+          // Iniciar desde pantalla de inicio
+          for (int i = 0; i < 7; i++) tiempos[i] = 0;
+          caraActual = detectarCara();
+          inicioTarea = millis();
+          corriendo = true;
+          enResumen = false;
+          Serial.print("Iniciado en cara: ");
+          Serial.println(caraActual);
+
+        } else if (corriendo) {
+          // Pausar y mostrar resumen
+          if (caraActual != 0) {
+            tiempos[caraActual] += millis() - inicioTarea;
+          }
+          corriendo = false;
+          enResumen = true;
+          mostrarResumen();
+          Serial.println("Resumen mostrado");
+
+        } else if (enResumen) {
+          // Desde resumen iniciar de nuevo
+          enResumen = false;
+          for (int i = 0; i < 7; i++) tiempos[i] = 0;
+          caraActual = detectarCara();
+          inicioTarea = millis();
+          corriendo = true;
+          Serial.print("Reiniciado en cara: ");
+          Serial.println(caraActual);
+        }
+      }
+    }
+  }
+  ultimoBoton = lecturaBoton;
+
+  if (!corriendo) return;
+
+  int cara = detectarCara();
+  if (cara != caraActual) {
+    if (caraActual != 0) {
+      tiempos[caraActual] += millis() - inicioTarea;
+    }
+    caraActual = cara;
+    inicioTarea = millis();
+    Serial.print("Cara: ");
+    Serial.println(caraActual);
+  }
+
+  mostrarPantalla();
+  delay(200);
+}
