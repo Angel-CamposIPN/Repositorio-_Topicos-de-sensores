@@ -1,0 +1,46 @@
+datos = readtable('Datos.xlsx', 'VariableNamingRule', 'preserve');
+t   = datos.("Tiempo(s)");
+bmp = datos.("Bmp180(°C)");
+lm  = datos.("LM35(°C)");
+
+t_sim    = t - t(1);
+bmp_norm = bmp - min(bmp);
+lm_norm  = lm  - min(lm);
+
+K_bmp   = bmp_norm(end);
+tau_bmp = t_sim(find(bmp_norm >= 0.632*K_bmp, 1));
+
+K_lm   = lm_norm(end);
+tau_lm = t_sim(find(lm_norm >= 0.632*K_lm, 1));
+
+fprintf('\n--- BMP180 ---\n')
+fprintf('K   = %.4f\n', K_bmp)
+fprintf('tau = %.4f s\n', tau_bmp)
+fprintf('G(s) = %.1f / (%.1f s + 1)\n\n', K_bmp, tau_bmp)
+
+fprintf('--- LM35 ---\n')
+fprintf('K   = %.4f\n', K_lm)
+fprintf('tau = %.4f s\n', tau_lm)
+fprintf('G(s) = %.1f / (%.1f s + 1)\n\n', K_lm, tau_lm)
+
+t_vec = linspace(0, t_sim(end), 1000)';
+
+figure;
+plot(t_sim, bmp, 'b', 'LineWidth', 2);
+title('BMP180 - Datos reales');
+xlabel('Tiempo (s)'); ylabel('Temperatura (°C)'); grid on;
+
+figure;
+plot(t_vec, K_bmp*(1-exp(-t_vec/tau_bmp)), 'b--', 'LineWidth', 2);
+title('BMP180 - Modelo');
+xlabel('Tiempo (s)'); ylabel('Temperatura (°C)'); grid on;
+
+figure;
+plot(t_sim, lm, 'r', 'LineWidth', 2);
+title('LM35 - Datos reales');
+xlabel('Tiempo (s)'); ylabel('Temperatura (°C)'); grid on;
+
+figure;
+plot(t_vec, K_lm*(1-exp(-t_vec/tau_lm)), 'r--', 'LineWidth', 2);
+title('LM35 - Modelo');
+xlabel('Tiempo (s)'); ylabel('Temperatura (°C)'); grid on;
