@@ -1,0 +1,103 @@
+%% TABLA PSICROMÉTRICA — Carga desde archivo CSV / Excel
+% Selecciona el archivo con el explorador de MATLAB.
+% El archivo debe tener 4 columnas en este orden:
+%   Col 1: temBMP  | Col 2: temHUM | Col 3: temprom | Col 4: %humedad
+% La primera fila puede ser encabezado (se detecta automáticamente).
+
+clc; clear; close all;
+
+%% ===== 1. SELECCIÓN DE ARCHIVO =====
+[archivo, ruta] = uigetfile( ...
+    {'*.csv;*.txt', 'Archivo CSV / TXT (*.csv, *.txt)'; ...
+     '*.xlsx;*.xls','Archivo Excel (*.xlsx, *.xls)'; ...
+     '*.*',         'Todos los archivos (*.*)'}, ...
+    'Selecciona el archivo con los datos psicrométricos');
+
+if isequal(archivo, 0)
+    errordlg('No se seleccionó ningún archivo. El programa se cerrará.', ...
+             'Sin archivo');
+    return;
+end
+
+ruta_completa = fullfile(ruta, archivo);
+[~, ~, ext] = fileparts(archivo);
+
+%% ===== 2. LECTURA DEL ARCHIVO =====
+fprintf('Leyendo archivo: %s\n', ruta_completa);
+
+try
+    if strcmpi(ext,'.xlsx') || strcmpi(ext,'.xls')
+        % --- Excel ---
+        opts = detectImportOptions(ruta_completa);
+        T = readtable(ruta_completa, opts);
+
+    elseif strcmpi(ext,'.csv') || strcmpi(ext,'.txt')
+        % --- CSV / TXT: detectar si hay encabezado ---
+        fid2  = fopen(ruta_completa,'r');
+        linea = fgetl(fid2);
+        fclose(fid2);
+        if any(isletter(linea))
+            T = readtable(ruta_completa,'Delimiter',',', ...
+                          'ReadVariableNames',true);
+        else
+            T = readtable(ruta_completa,'Delimiter',',', ...
+                          'ReadVariableNames',false);
+        end
+    else
+        error('Formato no soportado. Use .csv, .txt, .xlsx o .xls');
+    end
+catch ME
+    errordlg(['Error al leer el archivo: ' ME.message],'Error de lectura');
+    return;
+end
+
+% Extraer las primeras 4 columnas numéricas
+datos   = table2array(T(:,1:4));
+datos   = datos(all(~isnan(datos),2), :);   % quitar filas con NaN
+
+temBMP  = datos(:,1);
+temHUM  = datos(:,2);
+temprom = datos(:,3);
+humedad = datos(:,4);
+n = length(humedad);
+
+fprintf('Datos cargados: %d filas\n\n', n);
+
+%% ===== 4. GRÁFICA: %HR vs Temperaturas =====
+figure('Name','Curva Psicrométrica','NumberTitle','off', ...
+       'Position',[920 50 820 500]);
+
+plot(humedad, temBMP,  'b-','LineWidth',1.8,'MarkerSize',5, ...
+     'DisplayName','Temperatura BMP180'); hold on;
+plot(humedad, temHUM,  'r-','LineWidth',1.8,'MarkerSize',5, ...
+     'DisplayName','Temperatura AHT20');
+plot(humedad, temprom, 'g-','LineWidth',1.8,'MarkerSize',5, ...
+     'DisplayName','Temperatura Promedio');
+
+xlabel('Humedad Relativa (%HR)','FontSize',12);
+ylabel('Temperatura (°C)','FontSize',12);
+title('Curva Psicrométrica: %HR vs Temperatura','FontSize',13,'FontWeight','bold');
+legend('Location','best','FontSize',10);
+grid on; grid minor;
+
+%% ===== 6. EXPORTAR RESULTADO TXT (misma carpeta del archivo fuente) =====
+[~,nombre,~] = fileparts(archivo);
+salida_txt   = fullfile(ruta, [nombre '_resultado.txt']);
+fid = fopen(salida_txt,'w');
+fprintf(fid,'%-5s %-14s %-14s %-14s %-10s\n', ...
+        'No.','temBMP(deg C)','temHUM(deg C)','temprom(deg C)','%HR');
+fprintf(fid,'%s\n',repmat('-',1,62));
+for i = 1:n
+    fprintf(fid,'%-5d %-14.3f %-14.3f %-14.3f %-10.2f\n', ...
+            i, temBMP(i), temHUM(i), temprom(i), humedad(i));
+end
+fclose(fid);
+
+%% ===== 7. ESTADÍSTICAS EN CONSOLA =====
+fprintf('=== ESTADÍSTICAS ===\n');
+fprintf('%-18s %8s %8s %8s\n','Variable','Min','Max','Media');
+fprintf('%-18s %8.3f %8.3f %8.3f\n','temBMP (C)',  min(temBMP),  max(temBMP),  mean(temBMP));
+fprintf('%-18s %8.3f %8.3f %8.3f\n','temHUM (C)',  min(temHUM),  max(temHUM),  mean(temHUM));
+fprintf('%-18s %8.3f %8.3f %8.3f\n','temprom (C)', min(temprom), max(temprom), mean(temprom));
+fprintf('%-18s %8.2f %8.2f %8.2f\n','%%HR',        min(humedad), max(humedad), mean(humedad));
+fprintf('\nResultado guardado en: %s\n', salida_txt);
