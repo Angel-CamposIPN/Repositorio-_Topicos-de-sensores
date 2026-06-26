@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chaleco Monitor — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg:       #0b0f1a;
+    --surface:  #131929;
+    --border:   #1e2d47;
+    --accent:   #00e5ff;
+    --accent2:  #7c4dff;
+    --accent3:  #ff6d00;
+    --ok:       #00e676;
+    --warn:     #ffea00;
+    --danger:   #ff1744;
+    --text:     #e8eaf0;
+    --muted:    #6b7a99;
+    --font:     'Space Grotesk', sans-serif;
+    --mono:     'Space Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  .logo span { color: var(--accent); }
+  .status-bar { display: flex; align-items: center; gap: 20px; }
+  #status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 0 transparent;
+    transition: background 0.3s;
+  }
+  #status-dot.live {
+    background: var(--ok);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(0,230,118,0.5); }
+    70%  { box-shadow: 0 0 0 8px rgba(0,230,118,0); }
+    100% { box-shadow: 0 0 0 0 rgba(0,230,118,0); }
+  }
+  #status-text { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+  .btn {
+    padding: 8px 18px; border-radius: 8px; border: none;
+    font-family: var(--font); font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--accent); color: #000;
+  }
+  .btn-primary:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn-secondary {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger {
+    background: var(--danger); color: #fff;
+  }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  /* ── LAYOUT ── */
+  main { padding: 24px 28px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--accent-kpi, var(--accent));
+  }
+  .kpi-label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .kpi-value { font-size: 32px; font-weight: 700; font-family: var(--mono); line-height: 1; color: var(--text); }
+  .kpi-unit  { font-size: 13px; font-weight: 400; color: var(--muted); margin-top: 4px; }
+
+  /* ── CHARTS GRID ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-title {
+    font-size: 13px; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .chart-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+  }
+  canvas { max-height: 220px; }
+
+  /* ── TABLA / LOG ── */
+  .log-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .log-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .log-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; }
+  #log-box {
+    background: #070b12;
+    border-radius: 8px;
+    padding: 14px;
+    height: 180px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    color: #4ade80;
+    border: 1px solid var(--border);
+  }
+  #log-box .row-gps { color: var(--accent); }
+  #log-box .row-err { color: var(--danger); }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    align-items: center;
+  }
+  .toolbar label { font-size: 13px; color: var(--muted); }
+  .toolbar select {
+    background: #070b12; color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; font-family: var(--font);
+  }
+  .sep { flex: 1; }
+  #rows-count { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+
+  /* ── NO SERIAL MSG ── */
+  #no-serial-msg {
+    background: #1a0e05;
+    border: 1px solid #4a2800;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #ff9a3c;
+    margin-bottom: 20px;
+    display: none;
+  }
+  #no-serial-msg a { color: var(--accent); }
+
+  /* ── GPS MAP PLACEHOLDER ── */
+  #gps-coords {
+    font-family: var(--mono); font-size: 13px;
+    padding: 10px 0;
+    color: var(--accent);
+  }
+
+  @media (max-width: 700px) {
+    header { padding: 12px 16px; }
+    main { padding: 16px; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .charts-grid .wide { grid-column: 1; }
+    .kpi-value { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🦺</div>
+    <h1>Chaleco <span>Monitor</span></h1>
+  </div>
+  <div class="status-bar">
+    <div id="status-dot"></div>
+    <span id="status-text">Sin conexión</span>
+    <button class="btn btn-primary" id="btn-connect">Conectar Serial</button>
+    <button class="btn btn-secondary" id="btn-download" disabled>⬇ Descargar CSV</button>
+    <button class="btn btn-danger" id="btn-clear" disabled>Limpiar</button>
+  </div>
+</header>
+
+<main>
+  <div id="no-serial-msg">
+    ⚠️ Tu navegador no soporta Web Serial API. Usa <strong>Chrome</strong> o <strong>Edge</strong> versión 89+.
+    <a href="https://caniuse.com/web-serial" target="_blank">Ver compatibilidad →</a>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi" style="--accent-kpi: #00e5ff">
+      <div class="kpi-label">Pasos</div>
+      <div class="kpi-value" id="kpi-pasos">—</div>
+      <div class="kpi-unit">conteo total</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: #00e676">
+      <div class="kpi-label">Dist. Acelerómetro</div>
+      <div class="kpi-value" id="kpi-dacc">—</div>
+      <div class="kpi-unit">metros</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: #7c4dff">
+      <div class="kpi-label">Dist. GPS</div>
+      <div class="kpi-value" id="kpi-dgps">—</div>
+      <div class="kpi-unit">metros</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: #ff6d00">
+      <div class="kpi-label">Tiempo activo</div>
+      <div class="kpi-value" id="kpi-tiempo">—</div>
+      <div class="kpi-unit">segundos</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: #ffea00">
+      <div class="kpi-label">Satélites GPS</div>
+      <div class="kpi-value" id="kpi-sats">—</div>
+      <div class="kpi-unit">en vista</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: #ff1744">
+      <div class="kpi-label">Magnitud Acc.</div>
+      <div class="kpi-value" id="kpi-mag">—</div>
+      <div class="kpi-unit">g</div>
+    </div>
+    <div class="kpi" style="--accent-kpi:#4fc3f7">
+      <div class="kpi-label">Temperatura BMP180</div>
+      <div class="kpi-value" id="kpi-temp">—</div>
+      <div class="kpi-unit">°C</div>
+    </div>
+    <div class="kpi" style="--accent-kpi:#90caf9">
+      <div class="kpi-label">Presión</div>
+      <div class="kpi-value" id="kpi-pres">—</div>
+      <div class="kpi-unit">hPa</div>
+    </div>
+    <div class="kpi" style="--accent-kpi:#ff1744">
+      <div class="kpi-label">Caída</div>
+      <div class="kpi-value" id="kpi-caida">NO</div>
+      <div class="kpi-unit">MPU6050</div>
+    </div>
+    <div class="kpi" style="--accent-kpi:#ff9800">
+      <div class="kpi-label">Acel. Máxima</div>
+      <div class="kpi-value" id="kpi-acelmax">—</div>
+      <div class="kpi-unit">g</div>
+    </div>
+
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <label>Baud rate:</label>
+    <select id="sel-baud">
+      <option value="115200" selected>115200</option>
+      <option value="9600">9600</option>
+      <option value="57600">57600</option>
+    </select>
+    <label>Ventana de datos:</label>
+    <select id="sel-window">
+      <option value="50">50 muestras</option>
+      <option value="100" selected>100 muestras</option>
+      <option value="200">200 muestras</option>
+      <option value="0">Todo</option>
+    </select>
+    <div class="sep"></div>
+    <span id="rows-count">0 filas guardadas</span>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card wide">
+      <div class="chart-title"><div class="dot" style="background:#00e5ff"></div>Magnitud del Acelerómetro (g)</div>
+      <canvas id="chart-mag"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:#ff6d00"></div>Ejes del Acelerómetro (g)</div>
+      <canvas id="chart-axes"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:#00e676"></div>Pasos acumulados</div>
+      <canvas id="chart-pasos"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title"><div class="dot" style="background:#7c4dff"></div>Distancia acumulada (m)</div>
+      <canvas id="chart-dist"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <div class="chart-title"><div class="dot" style="background:#ffea00"></div>Coordenadas GPS</div>
+      <div id="gps-coords">Sin señal GPS — esperando fix...</div>
+      <canvas id="chart-gps" style="max-height:180px"></canvas>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="log-section">
+    <div class="log-header">
+      <span class="log-title">📡 Stream Serial</span>
+      <button class="btn btn-secondary" onclick="clearLog()">Limpiar log</button>
+    </div>
+    <div id="log-box"><span style="color:#6b7a99">Esperando datos del Arduino...</span></div>
+  </div>
+</main>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  Estado global
+// ═══════════════════════════════════════════════════════════
+let port = null, reader = null, isReading = false;
+const allRows = [];          // CSV completo guardado en memoria
+const MAX_CHART = 100;       // ventana de gráfica por defecto
+
+// Datos de gráficas
+const D = {
+  labels: [], mag: [], ax: [], ay: [], az: [],
+  pasos: [], dacc: [], dgps: [], lat: [], lon: []
+};
+
+// ═══════════════════════════════════════════════════════════
+//  Inicializar Chart.js
+// ═══════════════════════════════════════════════════════════
+Chart.defaults.color = '#6b7a99';
+Chart.defaults.borderColor = '#1e2d47';
+Chart.defaults.font.family = "'Space Grotesk', sans-serif";
+
+const commonOpts = (yLabel) => ({
+  responsive: true, maintainAspectRatio: true,
+  animation: { duration: 0 },
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { display: false },
+    y: { title: { display: !!yLabel, text: yLabel }, grid: { color: '#1e2d47' } }
+  }
+});
+
+const mkLine = (id, datasets, yLabel) => new Chart(
+  document.getElementById(id),
+  { type: 'line', data: { labels: [], datasets }, options: commonOpts(yLabel) }
+);
+
+const charts = {
+  mag: mkLine('chart-mag', [{
+    label: '|a|', data: D.mag,
+    borderColor: '#00e5ff', backgroundColor: 'rgba(0,229,255,0.08)',
+    tension: 0.3, borderWidth: 2, pointRadius: 0, fill: true
+  }], 'g'),
+
+  axes: mkLine('chart-axes', [
+    { label: 'ax', data: D.ax, borderColor: '#ff6d00', tension: 0.3, borderWidth: 1.5, pointRadius: 0 },
+    { label: 'ay', data: D.ay, borderColor: '#00e676', tension: 0.3, borderWidth: 1.5, pointRadius: 0 },
+    { label: 'az', data: D.az, borderColor: '#7c4dff', tension: 0.3, borderWidth: 1.5, pointRadius: 0 }
+  ], 'g'),
+
+  pasos: mkLine('chart-pasos', [{
+    label: 'Pasos', data: D.pasos,
+    borderColor: '#00e676', backgroundColor: 'rgba(0,230,118,0.07)',
+    tension: 0, borderWidth: 2, pointRadius: 0, fill: true, stepped: 'after'
+  }], 'pasos'),
+
+  dist: mkLine('chart-dist', [
+    { label: 'Acc', data: D.dacc, borderColor: '#00e676', tension: 0.3, borderWidth: 2, pointRadius: 0 },
+    { label: 'GPS', data: D.dgps, borderColor: '#7c4dff', tension: 0.3, borderWidth: 2, pointRadius: 0, borderDash: [4,3] }
+  ], 'm'),
+
+  gps: new Chart(document.getElementById('chart-gps'), {
+    type: 'scatter',
+    data: { datasets: [{ label: 'Ruta GPS', data: [], borderColor: '#ffea00', backgroundColor: 'rgba(255,234,0,0.5)', pointRadius: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: true, animation: { duration: 0 },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: 'Longitud' }, grid: { color: '#1e2d47' } },
+        y: { title: { display: true, text: 'Latitud' }, grid: { color: '#1e2d47' } }
+      }
+    }
+  })
+};
+
+// Actualizar etiquetas compartidas en todas las gráficas de línea
+function syncLabels(label) {
+  ['mag','axes','pasos','dist'].forEach(k => {
+    charts[k].data.labels.push(label);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Web Serial API
+// ═══════════════════════════════════════════════════════════
+const btnConnect  = document.getElementById('btn-connect');
+const btnDownload = document.getElementById('btn-download');
+const btnClear    = document.getElementById('btn-clear');
+const statusDot   = document.getElementById('status-dot');
+const statusText  = document.getElementById('status-text');
+
+if (!navigator.serial) {
+  document.getElementById('no-serial-msg').style.display = 'block';
+  btnConnect.disabled = true;
+}
+
+btnConnect.addEventListener('click', async () => {
+  if (isReading) return disconnect();
+  try {
+    const baud = parseInt(document.getElementById('sel-baud').value);
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: baud });
+    setStatus('live', `Conectado @ ${baud}`);
+    btnConnect.textContent = 'Desconectar';
+    btnConnect.classList.replace('btn-primary','btn-danger');
+    btnDownload.disabled = false;
+    btnClear.disabled = false;
+    isReading = true;
+    readLoop();
+  } catch(e) {
+    setStatus('', 'Error: ' + e.message);
+  }
+});
+
+btnDownload.addEventListener('click', downloadCSV);
+btnClear.addEventListener('click', clearData);
+
+async function disconnect() {
+  isReading = false;
+  try { await reader?.cancel(); } catch(_) {}
+  try { await port?.close(); } catch(_) {}
+  setStatus('', 'Desconectado');
+  btnConnect.textContent = 'Conectar Serial';
+  btnConnect.classList.replace('btn-danger','btn-primary');
+}
+
+function setStatus(cls, txt) {
+  statusDot.className = cls;
+  statusText.textContent = txt;
+}
+
+// ── Lectura de líneas del Serial ──────────────────────────
+let lineBuffer = '';
+async function readLoop() {
+  const decoder = new TextDecoderStream();
+  port.readable.pipeTo(decoder.writable);
+  reader = decoder.readable.getReader();
+  try {
+    while (isReading) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      lineBuffer += value;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop();
+      lines.forEach(parseLine);
+    }
+  } catch(e) {
+    if (isReading) logMsg('⚠ Error de lectura: ' + e.message, 'row-err');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Parser CSV
+// ═══════════════════════════════════════════════════════════
+// timestamp_ms,tiempo_s,pasos,dist_acc_m,dist_gps_m,lat,lon,satelites,ax_g,ay_g,az_g,magnitud
+const CSV_HEADER = 'timestamp_ms,tiempo_s,pasos,dist_acc_m,dist_gps_m,lat,lon,satelites,ax_g,ay_g,az_g,magnitud,presion_Pa,temp_C,caida,aceleracionMaxima';
+
+function parseLine(raw) {
+  const line = raw.trim();
+  if (!line) return;
+
+  // Mensajes de protocolo
+  if (line.startsWith('##') || line.startsWith('//')) {
+    logMsg(line, '');
+    return;
+  }
+  // Cabecera CSV — guardar pero no graficar
+  if (line.startsWith('timestamp_ms')) {
+    if (allRows.length === 0) allRows.push(CSV_HEADER);
+    return;
+  }
+
+  const cols = line.split(',');
+  if (cols.length < 16) {
+    logMsg(line, 'row-err');
+    return;
+  }
+
+  const [ts, tSeg, pasos, dacc, dgps, lat, lon, sats, ax, ay, az, mag, presBmp, tempBmp, caidaRaw, acelMax] = cols.map(Number);
+  if (isNaN(ts)) { logMsg(line, 'row-err'); return; }
+
+  // Guardar fila
+  if (allRows.length === 0) allRows.push(CSV_HEADER);
+  allRows.push(line);
+  updateRowCount();
+
+  // Log visual (con clase de color si hay GPS)
+  const cls = (lat !== 0 && lon !== 0) ? 'row-gps' : '';
+  logMsg(line, cls);
+
+  // KPIs
+  document.getElementById('kpi-pasos').textContent  = pasos;
+  document.getElementById('kpi-dacc').textContent   = dacc.toFixed(1);
+  document.getElementById('kpi-dgps').textContent   = dgps.toFixed(1);
+  document.getElementById('kpi-tiempo').textContent = tSeg;
+  document.getElementById('kpi-sats').textContent   = sats;
+  document.getElementById('kpi-mag').textContent    = mag.toFixed(3);
+  document.getElementById('kpi-temp').textContent = tempBmp.toFixed(1);
+  document.getElementById('kpi-pres').textContent = (presBmp/100.0).toFixed(1);
+  document.getElementById('kpi-acelmax').textContent = acelMax.toFixed(2);
+
+  const caidaEl = document.getElementById('kpi-caida');
+  const caida = (caidaRaw === 1);
+  caidaEl.textContent = caida ? 'CAÍDA' : 'NORMAL';
+  caidaEl.style.color = caida ? '#ff1744' : '#00e676';
+
+
+  // GPS coords text
+  if (lat !== 0 || lon !== 0) {
+    document.getElementById('gps-coords').textContent =
+      `Lat: ${lat.toFixed(6)}°  Lon: ${lon.toFixed(6)}°  (${sats} sats)`;
+  }
+
+  // Ventana de gráficas
+  const win = parseInt(document.getElementById('sel-window').value) || Infinity;
+
+  // Añadir puntos
+  const lbl = tSeg + 's';
+  syncLabels(lbl);
+  D.mag.push(mag);
+  D.ax.push(ax); D.ay.push(ay); D.az.push(az);
+  D.pasos.push(pasos);
+  D.dacc.push(dacc); D.dgps.push(dgps);
+
+  // Recortar ventana
+  ['mag','axes','pasos','dist'].forEach(k => {
+    const ch = charts[k];
+    const max = win === Infinity ? 999999 : win;
+    while (ch.data.labels.length > max) ch.data.labels.shift();
+  });
+  const trim = (arr) => { while (arr.length > (win === Infinity ? 999999 : win)) arr.shift(); };
+  [D.mag, D.ax, D.ay, D.az, D.pasos, D.dacc, D.dgps].forEach(trim);
+
+  // GPS scatter
+  if (lat !== 0 && lon !== 0) {
+    charts.gps.data.datasets[0].data.push({ x: lon, y: lat });
+    if (win !== Infinity && charts.gps.data.datasets[0].data.length > win)
+      charts.gps.data.datasets[0].data.shift();
+    charts.gps.update('none');
+  }
+
+  // Actualizar gráficas
+  ['mag','axes','pasos','dist'].forEach(k => charts[k].update('none'));
+}
+
+// ═══════════════════════════════════════════════════════════
+//  Utilidades UI
+// ═══════════════════════════════════════════════════════════
+const logBox = document.getElementById('log-box');
+let logLines = 0;
+function logMsg(txt, cls) {
+  if (logLines === 0) logBox.innerHTML = '';
+  const el = document.createElement('div');
+  el.textContent = txt;
+  if (cls) el.className = cls;
+  logBox.appendChild(el);
+  logLines++;
+  if (logLines > 200) logBox.removeChild(logBox.firstChild);
+  logBox.scrollTop = logBox.scrollHeight;
+}
+function clearLog() { logBox.innerHTML = ''; logLines = 0; }
+
+function updateRowCount() {
+  document.getElementById('rows-count').textContent = `${allRows.length - 1} filas guardadas`;
+}
+
+function downloadCSV() {
+  if (allRows.length < 2) return;
+  const blob = new Blob([allRows.join('\n')], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `chaleco_${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearData() {
+  allRows.length = 0;
+  ['mag','axes','pasos','dist'].forEach(k => {
+    charts[k].data.labels.length = 0;
+    charts[k].data.datasets.forEach(ds => ds.data.length = 0);
+    charts[k].update('none');
+  });
+  charts.gps.data.datasets[0].data = [];
+  charts.gps.update('none');
+  Object.keys(D).forEach(k => D[k].length = 0);
+  updateRowCount();
+  logBox.innerHTML = '';
+  logLines = 0;
+}
+
+// Ventana de datos: el selector actualiza en el próximo ciclo automáticamente
+</script>
+</body>
+</html>
